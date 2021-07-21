@@ -90,8 +90,11 @@ contents p = do
     eof
     pure r
 
+manyLispVal :: Parser [LispVal]
+manyLispVal = parseExpr `sepBy` Tok.whiteSpace lexer
+
 readExpr :: T.Text -> Either ParseError LispVal
 readExpr = parse (contents parseExpr) "<stdin>"
 
 readExprFile :: SourceName -> T.Text -> Either ParseError LispVal
-readExprFile = parse (contents parseList)
+readExprFile = parse (contents (List <$> manyLispVal))

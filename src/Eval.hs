@@ -15,17 +15,29 @@ import Prim
 import Parser
 
 local :: (EnvCtx -> EnvCtx) -> Eval a -> Eval a
-local update x = Eval $ withStateT update $ unEval x
+-- local update x = Eval $ withStateT update $ unEval x
+local update x = do
+    env <- get
+    modify update
+    a <- x
+    put env
+    pure a
 
 basicEnv :: EnvCtx
--- basicEnv = M.fromList $ primEnv <> [("read" , Fun $ IFunc $ unop $ readFn)]
-basicEnv = M.fromList $ primEnv <> []
+basicEnv =  M.fromList $ primEnv 
+         <> [("read", Fun $ IFunc $ unOp readFn)
+            , ("parse", Fun $ IFunc $ unOp parseFn)
+            , ("eval", Fun $ IFunc $ unOp eval)
+            , ("show", Fun $ IFunc $ unOp (pure . String . showVal))
+            ]
 
-evalFile :: EnvCtx -> FilePath -> T.Text -> IO EnvCtx --program file
+-- evaluate a program file
+evalFile :: EnvCtx -> FilePath -> T.Text -> IO EnvCtx
 evalFile env filePath fileExpr = do 
     (_, env') <- runASTinEnv env (fileToEvalForm filePath fileExpr)
     pure env'
 
+-- evaluate a line from the REPL
 evalText :: EnvCtx -> T.Text -> IO EnvCtx
 evalText env textExpr = do
     (res, env') <- runASTinEnv env $ textToEvalForm textExpr
@@ -37,8 +49,8 @@ textToEvalForm input = either (throw . PError . show )  evalBody $ readExpr inpu
 
 fileToEvalForm :: FilePath -> T.Text -> Eval LispVal
 fileToEvalForm filePath input = either (throw . PError . show )
-                              evalBody
-                              $ readExprFile filePath input
+                                       evalBody
+                                       $ readExprFile filePath input
 stdLib :: FilePath
 stdLib = "lib/stdlib.scm"
 
@@ -69,8 +81,18 @@ runParseTest input = either (T.pack . show)
                             $ readExpr input
 
 runASTinEnv :: EnvCtx -> Eval a -> IO (a, EnvCtx)
-runASTinEnv code action = runStateT (unEval action) code
+runASTinEnv env action = runStateT (unEval action) env
 
+readFn :: LispVal -> Eval LispVal
+readFn (String txt) = lineToEvalForm txt
+readFn  val         = throw $ TypeMismatch "read expects string, instead got: " val
+
+parseFn :: LispVal -> Eval LispVal
+parseFn (String txt) = either (throw . PError . show) return $ readExpr txt
+parseFn val = throw $ TypeMismatch "parse expects string, instead got: " val
+
+lineToEvalForm :: T.Text -> Eval LispVal
+lineToEvalForm input = either (throw . PError . show  )  eval $ readExpr input
 
 eval :: LispVal -> Eval LispVal
 eval a@(Atom _)   = getVar a
@@ -104,9 +126,8 @@ eval (List ((:) (Atom "begin") rest )) = evalBody $ List rest
 eval (List [Atom "define", varExpr, expr]) = do
     varAtom <- ensureAtom varExpr
     evalVal <- eval expr
-    env <- get
-    let envFn = const $ M.insert (extractVar varAtom) evalVal env
-    local envFn $ pure varExpr
+    modify $ M.insert (extractVar varAtom) evalVal
+    pure varExpr
 
 eval (List [Atom "lambda", List params, expr]) = do
     envLocal <- get
@@ -125,13 +146,12 @@ eval x = throw $ Default x
 evalBody :: LispVal -> Eval LispVal
 evalBody (List [List ((:) (Atom "define") [Atom var, defExpr]), rest]) = do
     evalVal <- eval defExpr
-    env     <- get
-    local (const $ M.insert var evalVal env) $ eval rest
+    modify $ M.insert var evalVal
+    eval rest
 evalBody (List ((:) (List ((:) (Atom "define") [Atom var, defExpr])) rest)) = do
     evalVal <- eval defExpr
-    env     <- get
-    let envFn = const $ M.insert var evalVal env
-    local envFn $ evalBody $ List rest
+    modify $ M.insert var evalVal
+    evalBody $ List rest
 evalBody x = eval x
 
 applyLambda :: LispVal -> [LispVal] -> [LispVal] -> Eval LispVal
@@ -145,7 +165,7 @@ getVar :: LispVal -> Eval LispVal
 getVar (Atom a) = do
     env <- get
     case M.lookup a env of
-      Just x -> return x
+      Just x -> pure x
       Nothing -> throw $ UnboundVar a
 getVar _ = undefined
 

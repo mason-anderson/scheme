@@ -23,6 +23,7 @@ mkFun = Fun . IFunc
 primEnv :: Prim
 primEnv =
     [ ("+"     , mkFun $ binOpFold (numOp (+)) (Number 0) )
+    , ("-"     , mkFun $ binOp $    numOp    (-))
     , ("*"     , mkFun $ binOpFold (numOp    (*))  (Number 1) )
     , ("++"    , mkFun $ binOpFold (strOp    (<>)) (String ""))
     , ("-"     , mkFun $ binOp $    numOp    (-))
@@ -35,21 +36,24 @@ primEnv =
     , ("odd?"  , mkFun $ unOp  $    numBool   odd)
     , ("pos?"  , mkFun $ unOp  $    numBool (< 0))
     , ("neg?"  , mkFun $ unOp  $    numBool (> 0))
+    , ("null?" , mkFun $ unOp (eqCmd Nil) )
     , ("eq?"   , mkFun $ binOp   eqCmd )
-    , ("nil?"  , mkFun   Prim.nil)
+    , ("nil?"  , mkFun   nil)
     , ("bl-eq?", mkFun $ binOp $ eqOp     (==))
     , ("and"   , mkFun $ binOpFold (eqOp     (&&)) (Bool True))
     , ("or"    , mkFun $ binOpFold (eqOp     (||)) (Bool False))
-    , ("cons"  , mkFun   Prim.cons)
-    , ("cdr"   , mkFun   Prim.cdr)
-    , ("car"   , mkFun   Prim.car)
+    , ("cons"  , mkFun   cons)
+    , ("cdr"   , mkFun   cdr)
+    , ("car"   , mkFun   car)
     , ("file?" , mkFun $ unOp  fileExists)
-    , ("slurp" , mkFun $ unOp  slurp), ("-"     , mkFun $ binOp $    numOp    (-))
+    , ("slurp" , mkFun $ unOp  slurp)
+    , ("display", mkFun $ unOp display)
+    , ("newline", mkFun $ newline)
     ]
 
 unOp :: Unary -> [LispVal] -> Eval LispVal
 unOp op [x] = op x
-unOp _ args = throw $ NumArgs 2 args
+unOp _ args = throw $ NumArgs 1 args
 
 binOp :: Binary -> [LispVal] -> Eval LispVal
 binOp op [x,y]  = op x y
@@ -114,27 +118,35 @@ wFileSlurp fileName = withFile (T.unpack fileName) ReadMode go
 
 readTextFile :: T.Text -> Handle -> IO LispVal
 readTextFile fileName handle = do
-    exists <- hIsEOF handle
+    exists <- doesFileExist $ T.unpack fileName
     if exists
     then TIO.hGetContents handle >>= (pure . String)
     else throw $ IOError $ T.concat [" file does not exits: ", fileName]
 
+display :: LispVal -> Eval LispVal
+display s@(String str) = liftIO ( TIO.putStr str) >> pure s
+display x = liftIO ( TIO.putStr (showVal x)) >> pure x
+
+newline :: [LispVal] -> Eval LispVal
+newline [] = liftIO (TIO.putStrLn "") >> pure Nil
+newline args = throw $ NumArgs 0 args
+
 cons :: [LispVal] -> Eval LispVal
 cons [x,List yList] = pure $ List $ x : yList
-cons [c]              = return $ List [c]
-cons []               = return $ List []
+cons [c]              = pure $ List [c]
+cons []               = pure $ List []
 cons _  = throw $ ExpectedList "cons, in second argumnet"
 
 car :: [LispVal] -> Eval LispVal
-car [List []    ] = return Nil
-car [List (x:_)]  = return x
-car []            = return Nil
+car [List []    ] = pure Nil
+car [List (x:_)]  = pure x
+car []            = pure Nil
 car _             = throw $ ExpectedList "car"
 
 cdr :: [LispVal] -> Eval LispVal
-cdr [List (_:xs)] = return $ List xs
-cdr [List []]     = return Nil
-cdr []            = return Nil
+cdr [List (_:xs)] = pure $ List xs
+cdr [List []]     = pure Nil
+cdr []            = pure Nil
 cdr _             = throw $ ExpectedList "cdr"
 
 nil :: [LispVal] -> Eval LispVal
