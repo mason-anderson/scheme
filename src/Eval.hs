@@ -33,7 +33,7 @@ basicEnv =  M.fromList $ primEnv
 
 -- evaluate a program file
 evalFile :: EnvCtx -> FilePath -> T.Text -> IO EnvCtx
-evalFile env filePath fileExpr = do 
+evalFile env filePath fileExpr = do
     (_, env') <- runASTinEnv env (fileToEvalForm filePath fileExpr)
     pure env'
 
@@ -45,7 +45,7 @@ evalText env textExpr = do
     pure env'
 
 textToEvalForm :: T.Text -> Eval LispVal
-textToEvalForm input = either (throw . PError . show )  evalBody $ readExpr input
+textToEvalForm input = either (throw . PError . show ) eval $ readExpr input
 
 fileToEvalForm :: FilePath -> T.Text -> Eval LispVal
 fileToEvalForm filePath input = either (throw . PError . show )
@@ -54,8 +54,8 @@ fileToEvalForm filePath input = either (throw . PError . show )
 stdLib :: FilePath
 stdLib = "lib/stdlib.scm"
 
-stdEnv :: IO EnvCtx
-stdEnv = do
+getStdEnv :: IO EnvCtx
+getStdEnv = do
     file <- getFileContents stdLib
     evalFile basicEnv stdLib file
 
@@ -75,6 +75,7 @@ getFileContents :: FilePath -> IO T.Text
 getFileContents fname = do
   exists <- doesFileExist fname
   if exists then TIO.readFile  fname else return "File does not exist."
+
 runParseTest :: T.Text -> T.Text -- for view AST
 runParseTest input = either (T.pack . show)
                             (T.pack . show)
@@ -152,6 +153,11 @@ evalBody (List ((:) (List ((:) (Atom "define") [Atom var, defExpr])) rest)) = do
     evalVal <- eval defExpr
     modify $ M.insert var evalVal
     evalBody $ List rest
+evalBody (List [x]) = eval x
+evalBody (List (x:xs)) = do
+    _ <- eval x
+    evalBody $ List xs
+evalBody (List []) = pure Nil
 evalBody x = eval x
 
 applyLambda :: LispVal -> [LispVal] -> [LispVal] -> Eval LispVal

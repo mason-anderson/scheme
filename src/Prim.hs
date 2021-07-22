@@ -124,8 +124,8 @@ readTextFile fileName handle = do
     else throw $ IOError $ T.concat [" file does not exits: ", fileName]
 
 display :: LispVal -> Eval LispVal
-display s@(String str) = liftIO ( TIO.putStr str) >> pure s
-display x = liftIO ( TIO.putStr (showVal x)) >> pure x
+display (String str) = liftIO ( TIO.putStr str) >> pure Nil
+display x = liftIO ( TIO.putStr (showVal x)) >> pure Nil
 
 newline :: [LispVal] -> Eval LispVal
 newline [] = liftIO (TIO.putStrLn "") >> pure Nil

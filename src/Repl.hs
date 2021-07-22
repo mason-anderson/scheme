@@ -13,7 +13,7 @@ type Repl a = InputT IO a
 
 mainLoop :: IO ()
 mainLoop = do
-    env <- stdEnv
+    env <- getStdEnv
     _ <- runInputT defaultSettings $ repl env
     pure ()
 
@@ -27,7 +27,6 @@ repl env = do
 process :: EnvCtx -> String -> IO EnvCtx
 process env str = do
     res <- safeExec $ evalText env $ T.pack str
-    -- either putStrLn return res
     case res of
         Left err -> putStrLn err >> pure env
         Right env' -> pure env'
