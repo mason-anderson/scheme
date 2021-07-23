@@ -102,6 +102,7 @@ eval s@(String _) = pure s
 eval b@(Bool _)   = pure b
 eval Nil          = pure Nil
 eval (List [])    = throw $ Default (List [])
+eval l@(Lambda _ _) = pure l
 
 eval (List [Atom "quote", val]) = pure val
 
@@ -119,7 +120,7 @@ eval (List [Atom "let", List pairs, expr]) = do
     atoms <- mapM (\(List [a, _]) -> ensureAtom a) pairs
     vals <- mapM (\(List [_, v]) -> eval v) pairs
     let env' = M.fromList (zipWith (\a b -> (extractVar a, b)) atoms vals) <> env
-    local (const env') $ evalBody expr
+    local (const env') $ eval expr
 
 eval (List [Atom "begin", rest]) = evalBody rest
 eval (List ((:) (Atom "begin") rest )) = evalBody $ List rest
@@ -136,11 +137,12 @@ eval (List [Atom "lambda", List params, expr]) = do
 eval (List (Atom "lambda":_) ) = throw $ BadSpecialForm "lambda"
 
 eval (List ((:) x xs)) = do
+    env <- get
     funVar <- eval x
-    xVal   <- mapM eval  xs
+    xVal   <- mapM eval xs
     case funVar of
         (Fun (IFunc internalFn)) -> internalFn xVal
-        (Lambda (IFunc internalfn) boundenv) -> local (const boundenv) $ internalfn xVal
+        (Lambda (IFunc internalfn) boundenv) -> local (const (boundenv <> env)) $ internalfn xVal
         _ -> throw $ NotFunction funVar
 eval x = throw $ Default x
 
@@ -153,6 +155,7 @@ evalBody (List ((:) (List ((:) (Atom "define") [Atom var, defExpr])) rest)) = do
     evalVal <- eval defExpr
     modify $ M.insert var evalVal
     evalBody $ List rest
+
 evalBody (List [x]) = eval x
 evalBody (List (x:xs)) = do
     _ <- eval x
@@ -163,8 +166,7 @@ evalBody x = eval x
 applyLambda :: LispVal -> [LispVal] -> [LispVal] -> Eval LispVal
 applyLambda expr params args = do
     env <- get
-    argEval <- mapM eval args
-    let env' = M.fromList (Prelude.zipWith (\a b -> (extractVar a,b)) params argEval) <> env
+    let env' = M.fromList (Prelude.zipWith (\a b -> (extractVar a,b)) params args) <> env
     local (const env' ) $ eval expr
 
 getVar :: LispVal -> Eval LispVal

@@ -16,7 +16,7 @@
 (define fold (lambda (f a l) (foldl f a l)))
 
 (define reduce (lambda (f a l) (fold f a l)))
-(define length (lambda (lst)        (fold (lambda (x y) (+ x 1)) 0 lst)))
+(define length (lambda (lst)        (fold (lambda (x y) (+ x 1)) -1 lst)))
 (define append (lambda (lst  lsts)  (foldr (flip (curry foldr cons)) lst lsts)))
 (define reverse (lambda (list) (cdr (foldl (flip cons) '() list))))
 
