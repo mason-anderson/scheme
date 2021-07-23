@@ -36,9 +36,8 @@ primEnv =
     , ("odd?"  , mkFun $ unOp  $    numBool   odd)
     , ("pos?"  , mkFun $ unOp  $    numBool (< 0))
     , ("neg?"  , mkFun $ unOp  $    numBool (> 0))
-    , ("null?" , mkFun $ unOp (eqCmd Nil) )
+    , ("null?" , mkFun $ unOp isNull )
     , ("eq?"   , mkFun $ binOp   eqCmd )
-    , ("nil?"  , mkFun   nil)
     , ("bl-eq?", mkFun $ binOp $ eqOp     (==))
     , ("and"   , mkFun $ binOpFold (eqOp     (&&)) (Bool True))
     , ("or"    , mkFun $ binOpFold (eqOp     (||)) (Bool False))
@@ -149,8 +148,8 @@ cdr [List []]     = pure Nil
 cdr []            = pure Nil
 cdr _             = throw $ ExpectedList "cdr"
 
-nil :: [LispVal] -> Eval LispVal
-nil [List []] = pure $ Bool True
-nil [List _] = pure $ Bool False
-nil [Nil] = pure $ Bool True
-nil _ = throw $ ExpectedList "nil? in first argument"
+isNull :: LispVal -> Eval LispVal
+isNull (List []) = pure $ Bool True
+isNull (List _)  = pure $ Bool False
+isNull Nil       = pure $ Bool True
+isNull _         = throw $ ExpectedList "null?"
