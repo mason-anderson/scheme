@@ -70,7 +70,7 @@ parseQuote = do
 
 parseReserved :: Parser LispVal
 parseReserved = do
-    reservedOp "Nil" >> pure Nil
+    reservedOp "#nil" >> pure Nil
     <|> (reservedOp "#t" >> pure (Bool True))
     <|> (reservedOp "#f" >> pure (Bool False))
 

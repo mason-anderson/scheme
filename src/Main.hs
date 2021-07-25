@@ -4,7 +4,6 @@ module Main where
 
 import System.Environment
 import qualified Data.Text.IO as TIO
-import qualified Data.Text as T
 
 import Repl
 import Eval
